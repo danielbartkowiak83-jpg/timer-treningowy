@@ -15,7 +15,7 @@ label{display:block;color:var(--muted);font-size:.88rem;margin-bottom:6px}input,
 .tablehead,.setrow{display:grid;grid-template-columns:44px 1fr 1fr;gap:10px;align-items:center}.tablehead{font-size:.8rem;color:var(--muted);padding:0 4px 8px}.setrow{padding:10px 0;border-top:1px solid #26384d}.setnum{font-weight:700;color:#c8d7e8;text-align:center}.setrow input{padding:9px 7px;text-align:center}
 .btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;transition:transform .08s}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:var(--green);color:#062313}.secondary{background:#263b53;color:var(--text)}.danger{background:#45232d;color:#ffd9dd}.btnrow{display:flex;gap:9px;flex-wrap:wrap}.btnrow .btn{flex:1}
 .status{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:.9rem}.phase{font-weight:800;letter-spacing:.1em;font-size:.9rem;color:var(--green)}.phase.rest{color:var(--orange)}
-.clock{font-size:clamp(4rem,18vw,6.4rem);font-weight:800;letter-spacing:-.06em;line-height:1.1;text-align:center;font-variant-numeric:tabular-nums;margin:12px 0}.progress{height:8px;background:#26384d;border-radius:99px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:var(--green);transition:width .15s linear}.restbar{background:var(--orange)}.currenttitle{text-align:center;font-size:1.1rem;font-weight:700}.sub{text-align:center;color:var(--muted);font-size:.9rem}.nextbox{background:#0b1524;border-radius:12px;padding:12px 14px;margin-top:14px;color:var(--muted)}.nextbox strong{color:var(--text)}.hidden{display:none!important}.small{font-size:.8rem;color:var(--muted)}.footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:20px}
+.clock{font-size:clamp(4rem,18vw,6.4rem);font-weight:800;letter-spacing:-.06em;line-height:1.1;text-align:center;font-variant-numeric:tabular-nums;margin:12px 0}.progress{height:8px;background:#26384d;border-radius:99px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:var(--green);transition:width .15s linear}.restbar{background:var(--orange)}.currenttitle{text-align:center;font-size:1.1rem;font-weight:700}.sub{text-align:center;color:var(--muted);font-size:.9rem}.nextbox{background:#0b1524;border-radius:12px;padding:12px 14px;margin-top:14px;color:var(--muted)}.nextbox strong{color:var(--text)}.hidden{display:none!important}.small{font-size:.8rem;color:var(--muted)}.small.warning{color:#ffb454}.footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:20px}
 @media(max-width:420px){main{padding:15px 12px 28px}.card{padding:15px}.tablehead,.setrow{grid-template-columns:34px 1fr 1fr;gap:7px}.top h1{font-size:1.2rem}}
 </style>
 </head>
@@ -57,7 +57,7 @@ label{display:block;color:var(--muted);font-size:.88rem;margin-bottom:6px}input,
       <button class="btn primary" id="pause">Ⅱ Pauza</button>
       <button class="btn danger" id="stop">Zakończ</button>
     </div>
-    <p class="small">Zostaw stronę otwartą, a głośność telefonu ustaw na odpowiednim poziomie. Działanie dźwięku przy zablokowanym ekranie zależy od telefonu i przeglądarki.</p>
+    <p class="small" id="wakeStatus">Podczas treningu aplikacja spróbuje utrzymać ekran iPhone’a włączony, aby timer i komunikaty głosowe działały stabilniej.</p><p class="small">Nie przełączaj aplikacji w tło ani nie blokuj ekranu podczas treningu. Ograniczenia iOS mogą wstrzymać dźwięk po opuszczeniu aplikacji.</p>
   </section>
   <section class="card hidden" id="done">
     <div class="phase">TRENING ZAKOŃCZONY</div><h2 style="margin-bottom:6px">Dobra robota! 💪</h2>
@@ -68,7 +68,7 @@ label{display:block;color:var(--muted);font-size:.88rem;margin-bottom:6px}input,
 </main>
 <script>
 const $=id=>document.getElementById(id);
-let plan=[], index=0, phase='work', remaining=0, total=0, running=false, paused=false, interval=null, deadline=0, audioCtx=null, spokenFive=false, mode='both', restOnlyReady=false;
+let plan=[], index=0, phase='work', remaining=0, total=0, running=false, paused=false, interval=null, deadline=0, audioCtx=null, spokenFive=false, mode='both', restOnlyReady=false, wakeLock=null;
 function makeDefault(n){
   const old=plan.slice();
   plan=Array.from({length:n},(_,i)=>old[i]||({work:i<2?60:i<4?45:30,rest:i<3?60:80}));
@@ -189,9 +189,33 @@ function tick(){
  }
  update();
 }
+async function acquireWakeLock(){
+ // Prosi iPhone'a o pozostawienie ekranu włączonego podczas aktywnego treningu.
+ // Wymaga obsługującej wersji iOS/Safari i widocznej strony.
+ try{
+  if('wakeLock' in navigator && document.visibilityState==='visible'){
+   wakeLock=await navigator.wakeLock.request('screen');
+   wakeLock.addEventListener('release',()=>{wakeLock=null;});
+   $('wakeStatus').textContent='Ekran pozostanie włączony podczas treningu.';
+   $('wakeStatus').classList.remove('warning');
+   return true;
+  }
+ }catch(e){}
+ $('wakeStatus').textContent='Nie udało się utrzymać ekranu włączonego. Pozostaw timer na pierwszym planie i sprawdź ustawienia autoblokady iPhone’a.';
+ $('wakeStatus').classList.add('warning');
+ return false;
+}
+async function releaseWakeLock(){
+ try{if(wakeLock){await wakeLock.release();wakeLock=null;}}catch(e){}
+}
+document.addEventListener('visibilitychange',async()=>{
+ // Po powrocie do aplikacji próbujemy ponownie uzyskać blokadę ekranu.
+ if(document.visibilityState==='visible' && running && !paused) await acquireWakeLock();
+});
 function start(){
  if(!plan.length)return;
  if(mode==='restOnly'){ startRestOnly(); return; }
+ acquireWakeLock();
  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}
  try{if(window.speechSynthesis)window.speechSynthesis.cancel();}catch(e){}
  clearInterval(interval);
@@ -214,6 +238,7 @@ function start(){
  },1000);
 }
 function startRestOnly(){
+ acquireWakeLock();
  clearInterval(interval); index=0; phase='rest'; running=false; paused=false; restOnlyReady=true;
  if(plan.length<=1){finish();return;}
  $('editor').classList.add('hidden');$('settings').classList.add('hidden');$('timer').classList.remove('hidden');$('done').classList.add('hidden');
@@ -243,10 +268,10 @@ function updateRestReady(){
  $('setLabel').textContent=`Następna przerwa ${index+1} z ${plan.length}`;$('stateLabel').textContent='Oczekiwanie';$('phase').textContent='GOTOWY DO PRZERWY';$('phase').className='phase rest';$('currenttitle').textContent=`Uruchom pomiar po serii ${index+1}`;$('clock').textContent=fmt(plan[index]?.rest||0);$('bar').style.width='0%';$('bar').className='bar restbar';$('remaining').textContent='Naciśnij przycisk po zakończeniu serii';$('nextText').textContent=`Przerwa ${plan[index]?.rest||0} s`;$('startRest').classList.remove('hidden');
 }
 function finish(){
- running=false;paused=false;clearInterval(interval);beep('end');$('timer').classList.add('hidden');$('done').classList.remove('hidden');
+ running=false;paused=false;clearInterval(interval);releaseWakeLock();beep('end');$('timer').classList.add('hidden');$('done').classList.remove('hidden');
 }
 function stop(){
- running=false;paused=false;restOnlyReady=false;clearInterval(interval);$('timer').classList.add('hidden');$('done').classList.add('hidden');$('settings').classList.remove('hidden');$('editor').classList.remove('hidden');
+ running=false;paused=false;restOnlyReady=false;clearInterval(interval);releaseWakeLock();$('timer').classList.add('hidden');$('done').classList.add('hidden');$('settings').classList.remove('hidden');$('editor').classList.remove('hidden');
 }
 $('start').onclick=()=>{mode=$('modeSelect').value;plan=plan.map(s=>({work:Math.max(1,parseInt(s.work)||1),rest:Math.max(mode==='restOnly'?1:0,parseInt(s.rest)||0)}));start()};
 $('startRest').onclick=beginRestOnly;
