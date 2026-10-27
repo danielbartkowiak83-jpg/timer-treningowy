@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>Timer treningowy</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121e30;--panel2:#18283d;--text:#f3f7fc;--muted:#9fb0c5;--green:#35e889;--orange:#ffb454;--red:#ff5964;--blue:#5ca8ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#14253b 0,var(--bg) 48%);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:680px;margin:auto;padding:20px 16px 36px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.top h1{font-size:1.4rem;margin:0}.tag{font-size:.78rem;color:var(--green);border:1px solid #256a4c;border-radius:999px;padding:5px 9px}
+.card{background:linear-gradient(145deg,#142237,#101a2a);border:1px solid #26384d;border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 12px 30px #0002}
+label{display:block;color:var(--muted);font-size:.88rem;margin-bottom:6px}input,select,button{font:inherit}input[type=number]{background:#0b1524;color:var(--text);border:1px solid #34485f;border-radius:10px;padding:10px;width:100%;min-width:0}
+.countrow{display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:end}.hint{color:var(--muted);font-size:.86rem;margin:10px 0 0}
+.tablehead,.setrow{display:grid;grid-template-columns:44px 1fr 1fr;gap:10px;align-items:center}.tablehead{font-size:.8rem;color:var(--muted);padding:0 4px 8px}.setrow{padding:10px 0;border-top:1px solid #26384d}.setnum{font-weight:700;color:#c8d7e8;text-align:center}.setrow input{padding:9px 7px;text-align:center}
+.btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;transition:transform .08s}.btn:active{transform:scale(.98)}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:var(--green);color:#062313}.secondary{background:#263b53;color:var(--text)}.danger{background:#45232d;color:#ffd9dd}.btnrow{display:flex;gap:9px;flex-wrap:wrap}.btnrow .btn{flex:1}
+.status{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:.9rem}.phase{font-weight:800;letter-spacing:.1em;font-size:.9rem;color:var(--green)}.phase.rest{color:var(--orange)}
+.clock{font-size:clamp(4rem,18vw,6.4rem);font-weight:800;letter-spacing:-.06em;line-height:1.1;text-align:center;font-variant-numeric:tabular-nums;margin:12px 0}.progress{height:8px;background:#26384d;border-radius:99px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:var(--green);transition:width .15s linear}.restbar{background:var(--orange)}.currenttitle{text-align:center;font-size:1.1rem;font-weight:700}.sub{text-align:center;color:var(--muted);font-size:.9rem}.nextbox{background:#0b1524;border-radius:12px;padding:12px 14px;margin-top:14px;color:var(--muted)}.nextbox strong{color:var(--text)}.hidden{display:none!important}.small{font-size:.8rem;color:var(--muted)}.footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:20px}
+@media(max-width:420px){main{padding:15px 12px 28px}.card{padding:15px}.tablehead,.setrow{grid-template-columns:34px 1fr 1fr;gap:7px}.top h1{font-size:1.2rem}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><h1>⏱ Timer treningowy</h1><span class="tag">TRYB SERII</span></div>
+  <section class="card" id="settings">
+    <div style="margin-bottom:16px">
+      <label for="modeSelect">Tryb treningu</label>
+      <select id="modeSelect" style="width:100%;background:#0b1524;color:var(--text);border:1px solid #34485f;border-radius:10px;padding:12px">
+        <option value="both">Czas serii i przerw</option>
+        <option value="restOnly">Tylko pomiar przerw</option>
+      </select>
+      <p class="hint" id="modeHint">Aplikacja odlicza czas każdej serii i automatycznie uruchamia zaplanowaną przerwę.</p>
+    </div>
+    <div class="countrow">
+      <div><label for="setCount" id="countLabel">Liczba serii</label><input id="setCount" type="number" min="1" max="50" value="6"></div>
+      <button class="btn secondary" id="applyCount">Ustaw serie</button>
+    </div>
+    <p class="hint" id="settingsHint">Ustaw czas ćwiczenia i przerwy osobno dla każdej serii. Przerwa po ostatniej serii nie jest wykonywana.</p>
+  </section>
+  <section class="card" id="editor">
+    <div class="tablehead" id="tablehead"><span>Seria</span><span class="workHeading">Czas serii (s)</span><span class="restHeading">Przerwa po (s)</span></div>
+    <div id="rows"></div>
+    <div class="btnrow" style="margin-top:14px"><button class="btn secondary" id="fillSame">Ustaw jednakowy czas</button><button class="btn primary" id="start">▶ Rozpocznij trening</button></div>
+    <p class="small">Wskazówka: przerwa wpisana przy serii oznacza przerwę po jej zakończeniu. W trybie „Tylko pomiar przerw” czas serii jest pomijany.</p>
+  </section>
+  <section class="card hidden" id="timer">
+    <div class="status"><span id="setLabel">Seria 1 z 6</span><span id="stateLabel">Gotowy</span></div>
+    <div class="phase" id="phase">ĆWICZENIE</div>
+    <div class="currenttitle" id="currenttitle">Seria 1</div>
+    <div class="clock" id="clock">01:00</div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="sub" id="remaining">Pozostało</div>
+    <div class="nextbox">Następnie: <strong id="nextText">Przerwa 60 s</strong></div>
+    <div class="btnrow" style="margin-top:16px">
+      <button class="btn primary hidden" id="startRest">▶ Rozpocznij pomiar przerwy</button>
+      <button class="btn secondary" id="skip">Pomiń etap ⏭</button>
+      <button class="btn primary" id="pause">Ⅱ Pauza</button>
+      <button class="btn danger" id="stop">Zakończ</button>
+    </div>
+    <p class="small">Zostaw stronę otwartą, a głośność telefonu ustaw na odpowiednim poziomie. Działanie dźwięku przy zablokowanym ekranie zależy od telefonu i przeglądarki.</p>
+  </section>
+  <section class="card hidden" id="done">
+    <div class="phase">TRENING ZAKOŃCZONY</div><h2 style="margin-bottom:6px">Dobra robota! 💪</h2>
+    <p class="hint">Wykonałeś wszystkie zaplanowane serie.</p>
+    <button class="btn primary" id="again" style="width:100%;margin-top:14px">Wróć do ustawień</button>
+  </section>
+  <div class="footer">Twoje ustawienia pozostają w tej stronie do czasu jej odświeżenia.</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let plan=[], index=0, phase='work', remaining=0, total=0, running=false, paused=false, interval=null, deadline=0, audioCtx=null, spokenFive=false, mode='both', restOnlyReady=false;
+function makeDefault(n){
+  const old=plan.slice();
+  plan=Array.from({length:n},(_,i)=>old[i]||({work:i<2?60:i<4?45:30,rest:i<3?60:80}));
+  renderRows();
+}
+function renderRows(){
+  $('rows').innerHTML='';
+  const restOnly=$('modeSelect').value==='restOnly';
+  $('tablehead').style.gridTemplateColumns=restOnly?'44px 1fr':'44px 1fr 1fr';
+  $('tablehead').querySelector('.workHeading').classList.toggle('hidden',restOnly);
+  $('tablehead').querySelector('.restHeading').textContent=restOnly?'Czas przerwy (s)':'Przerwa po (s)';
+  plan.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='setrow';
+    row.style.gridTemplateColumns=restOnly?'44px 1fr':'44px 1fr 1fr';
+    row.innerHTML=restOnly
+      ? `<div class="setnum">${i+1}</div><div><input aria-label="Czas przerwy ${i+1} w sekundach" type="number" min="1" max="3600" value="${s.rest}" data-i="${i}" data-k="rest"></div>`
+      : `<div class="setnum">${i+1}</div><div><input aria-label="Czas serii ${i+1} w sekundach" type="number" min="1" max="3600" value="${s.work}" data-i="${i}" data-k="work"></div><div><input aria-label="Przerwa po serii ${i+1} w sekundach" type="number" min="0" max="3600" value="${s.rest}" data-i="${i}" data-k="rest"></div>`;
+    $('rows').appendChild(row);
+  });
+  $('rows').querySelectorAll('input').forEach(inp=>inp.addEventListener('change',e=>{
+    const i=+e.target.dataset.i,k=e.target.dataset.k,v=Math.max(k==='work'?1:( $('modeSelect').value==='restOnly'?1:0),Math.min(3600,parseInt(e.target.value)||0));
+    plan[i][k]=v;e.target.value=v;
+  }));
+}
+function updateModeUI(){
+  mode=$('modeSelect').value;
+  const restOnly=mode==='restOnly';
+  $('modeHint').textContent=restOnly?'Wpisz liczbę przerw i czas każdej z nich. Po zakończeniu serii naciśnij przycisk, a aplikacja odmierzy wybraną przerwę.':'Aplikacja odlicza czas każdej serii i automatycznie uruchamia zaplanowaną przerwę.';
+  $('start').textContent=restOnly?'▶ Przygotuj pomiar przerw':'▶ Rozpocznij trening';
+  $('fillSame').textContent=restOnly?'Ustaw jednakowy czas przerwy':'Ustaw jednakowy czas';
+  $('countLabel').textContent=restOnly?'Liczba przerw':'Liczba serii';
+  $('applyCount').textContent=restOnly?'Ustaw przerwy':'Ustaw serie';
+  $('settingsHint').textContent=restOnly?'Ustaw czas każdej przerwy. Nie ma tu ustawień czasu serii.':'Ustaw czas ćwiczenia i przerwy osobno dla każdej serii. Przerwa po ostatniej serii nie jest wykonywana.';
+  renderRows();
+}
+$('applyCount').onclick=()=>{let n=Math.max(1,Math.min(50,parseInt($('setCount').value)||1));$('setCount').value=n;makeDefault(n)};
+$('modeSelect').onchange=updateModeUI;
+$('fillSame').onclick=()=>{
+ const restOnly=$('modeSelect').value==='restOnly';
+ if(restOnly){const r=Math.max(1,Math.min(3600,parseInt(prompt('Czas każdej przerwy w sekundach:',String(plan[0]?.rest||60)))||60));plan=plan.map(s=>({...s,rest:r}));}
+ else {const w=Math.max(1,Math.min(3600,parseInt(prompt('Czas każdej serii w sekundach:',String(plan[0]?.work||45)))||45));const r=Math.max(0,Math.min(3600,parseInt(prompt('Przerwa po serii w sekundach:',String(plan[0]?.rest||60)))||0));plan=plan.map(s=>({work:w,rest:r}));}
+ renderRows();
+};
+function speakWord(word){
+ // Wypowiada komunikat po polsku przez syntezator mowy przeglądarki.
+ try{
+  if(!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)){
+   // Awaryjny sygnał dźwiękowy, gdy przeglądarka nie obsługuje mowy.
+   beep(word==='Stop'?'end':'start');
+   return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance=new SpeechSynthesisUtterance(word);
+  utterance.lang='pl-PL';
+  utterance.rate=0.92;
+  utterance.pitch=1;
+  utterance.volume=1;
+  window.speechSynthesis.speak(utterance);
+ }catch(e){
+  try{beep(word==='Stop'?'end':'start')}catch(_){ }
+ }
+}
+function beep(kind='start'){
+ try{
+  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  const now=audioCtx.currentTime;
+  const freqs=kind==='end'?[660,440]:kind==='rest'?[440,660]:[880];
+  freqs.forEach((f,j)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,now+j*.16);g.gain.exponentialRampToValueAtTime(.22,now+j*.16+.015);g.gain.exponentialRampToValueAtTime(.0001,now+j*.16+.13);o.connect(g);g.connect(audioCtx.destination);o.start(now+j*.16);o.stop(now+j*.16+.15)});
+ }catch(e){}
+}
+function fmt(s){s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function update(){
+ $('setLabel').textContent=`Seria ${Math.min(index+1,plan.length)} z ${plan.length}`;
+ $('stateLabel').textContent=paused?'Wstrzymano':running?'W trakcie':'Gotowy';
+ $('phase').textContent=restOnlyReady?'GOTOWY DO PRZERWY':(phase==='work'?'ĆWICZENIE':'PRZERWA');
+ $('phase').className='phase'+(phase==='rest'||restOnlyReady?' rest':'');
+ $('currenttitle').textContent=restOnlyReady?`Po zakończeniu serii ${index+1} naciśnij przycisk`:(phase==='work'?`Seria ${index+1}`:`Przerwa po serii ${index+1}`);
+ $('clock').textContent=fmt(remaining);
+ $('bar').style.width=(total?Math.max(0,Math.min(100,(1-remaining/total)*100)):0)+'%';
+ $('bar').className='bar'+(phase==='rest'?' restbar':'');
+ $('remaining').textContent=restOnlyReady?'Gotowy — uruchom pomiar po zakończeniu serii':(paused?'Timer wstrzymany':'Pozostało');
+ $('startRest').classList.toggle('hidden', mode!=='restOnly'||!restOnlyReady);
+ $('skip').classList.toggle('hidden', mode==='restOnly');
+ $('pause').classList.toggle('hidden', mode==='restOnly');
+ const next=mode==='restOnly'?(index<plan.length?`Przerwa ${plan[index]?.rest||0} s`:'Koniec treningu'):(phase==='work'?(plan[index].rest>0?`Przerwa ${plan[index].rest} s`:(index<plan.length-1?`Seria ${index+2}`:'Koniec treningu')):(index<plan.length-1?`Seria ${index+2} · ${plan[index+1].work} s`:'Koniec treningu'));
+ $('nextText').textContent=next;
+}
+function beginPhase(p,doBeep=true){
+ $('pause').disabled=false;
+ phase=p;total=p==='work'?plan[index].work:plan[index].rest;remaining=total;deadline=Date.now()+remaining*1000;running=true;paused=false;spokenFive=false;
+ if(doBeep){
+  if(p==='work') { if(total>=6)speakWord('Start'); }
+  else { if(total>=6)beep('rest'); }
+ }
+ update();
+}
+function nextPhase(){
+ if(phase==='work'){
+  if(plan[index].rest>0){beginPhase('rest',true);return}
+  if(index<plan.length-1){index++;beginPhase('work',true);return}
+  finish();return;
+ }
+ if(index<plan.length-1){index++;beginPhase('work',true)}else finish();
+}
+function tick(){
+ if(!running||paused)return;
+ remaining=Math.max(0,(deadline-Date.now())/1000);
+ if(remaining<=0){
+  if(total>=6){ if(phase==='work')speakWord('Stop'); else beep('end'); }
+  nextPhase();return;
+ }
+ // Zapowiedź końca serii oraz zapowiedź kolejnej serii, tylko dla etapów trwających co najmniej 6 sekund.
+ if(total>=6 && remaining<=5.05 && !spokenFive){
+  if(phase==='work') speakWord('Pięć sekund');
+  else if(index<plan.length-1) speakWord('Pięć sekund');
+  spokenFive=true;
+ }
+ update();
+}
+function start(){
+ if(!plan.length)return;
+ if(mode==='restOnly'){ startRestOnly(); return; }
+ try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}
+ try{if(window.speechSynthesis)window.speechSynthesis.cancel();}catch(e){}
+ clearInterval(interval);
+ $('editor').classList.add('hidden');$('settings').classList.add('hidden');$('timer').classList.remove('hidden');$('done').classList.add('hidden');
+ // Przygotowanie przed treningiem: 3, 2, 1, a dopiero potem rozpoczyna się pierwsza seria.
+ running=true;paused=false;index=0;phase='work';total=3;remaining=3;deadline=Date.now()+3000;spokenFive=true;
+ $('setLabel').textContent='Przygotuj się';
+ $('stateLabel').textContent='Odliczanie';
+ $('phase').textContent='PRZYGOTUJ SIĘ';$('phase').className='phase';$('pause').disabled=true;$('pause').textContent='Ⅱ Pauza';
+ $('currenttitle').textContent='Trening rozpocznie się za chwilę';
+ $('clock').textContent='00:03';$('bar').style.width='0%';$('bar').className='bar';
+ $('remaining').textContent='Zajmij pozycję do ćwiczenia';$('nextText').textContent='Start po odliczaniu';
+ let count=3;
+ speakWord('Trzy');
+ interval=setInterval(()=>{
+   if(!running||paused)return;
+   count--;
+   if(count>0){remaining=count;deadline=Date.now()+1000;$('clock').textContent='00:0'+count;$('bar').style.width=((3-count)/3*100)+'%';speakWord(count===2?'Dwa':'Jeden');}
+   else {clearInterval(interval);beginPhase('work',true);interval=setInterval(tick,100);}
+ },1000);
+}
+function startRestOnly(){
+ clearInterval(interval); index=0; phase='rest'; running=false; paused=false; restOnlyReady=true;
+ if(plan.length<=1){finish();return;}
+ $('editor').classList.add('hidden');$('settings').classList.add('hidden');$('timer').classList.remove('hidden');$('done').classList.add('hidden');
+ $('pause').disabled=false; $('pause').textContent='Ⅱ Pauza';
+ total=plan[0]?.rest||0; remaining=total;
+ $('stateLabel').textContent='Oczekiwanie'; $('phase').textContent='GOTOWY DO PRZERWY'; $('phase').className='phase rest';
+ $('currenttitle').textContent='Po zakończeniu serii naciśnij przycisk'; $('clock').textContent=fmt(total); $('bar').style.width='0%'; $('bar').className='bar restbar';
+ $('remaining').textContent='Czas zacznie płynąć po naciśnięciu przycisku'; $('nextText').textContent=`Przerwa po serii 1 · ${total} s`;
+ $('startRest').classList.remove('hidden');$('skip').classList.add('hidden');$('pause').classList.add('hidden');
+}
+function beginRestOnly(){
+ if(!restOnlyReady || index>=plan.length)return;
+ const seconds=plan[index].rest;
+ if(seconds<=0){speakWord('Start'); index++; if(index>=plan.length){finish();return;} total=plan[index].rest;remaining=total;updateRestReady();return;}
+ restOnlyReady=false; phase='rest'; total=seconds;remaining=seconds;deadline=Date.now()+seconds*1000;running=true;paused=false;spokenFive=false;
+ $('startRest').classList.add('hidden'); $('stateLabel').textContent='W trakcie'; speakWord('Start');
+ clearInterval(interval); interval=setInterval(()=>{
+   if(!running||paused)return;
+   remaining=Math.max(0,(deadline-Date.now())/1000);
+   if(total>=6&&remaining<=5.05&&!spokenFive){speakWord('Pięć sekund');spokenFive=true;}
+   if(remaining<=0){clearInterval(interval);running=false;speakWord('Stop');index++;if(index>=plan.length-1){finish();return;}restOnlyReady=true;total=plan[index].rest;remaining=total;updateRestReady();return;}
+   update();
+ },100);
+ update();
+}
+function updateRestReady(){
+ $('setLabel').textContent=`Następna przerwa ${index+1} z ${plan.length}`;$('stateLabel').textContent='Oczekiwanie';$('phase').textContent='GOTOWY DO PRZERWY';$('phase').className='phase rest';$('currenttitle').textContent=`Uruchom pomiar po serii ${index+1}`;$('clock').textContent=fmt(plan[index]?.rest||0);$('bar').style.width='0%';$('bar').className='bar restbar';$('remaining').textContent='Naciśnij przycisk po zakończeniu serii';$('nextText').textContent=`Przerwa ${plan[index]?.rest||0} s`;$('startRest').classList.remove('hidden');
+}
+function finish(){
+ running=false;paused=false;clearInterval(interval);beep('end');$('timer').classList.add('hidden');$('done').classList.remove('hidden');
+}
+function stop(){
+ running=false;paused=false;restOnlyReady=false;clearInterval(interval);$('timer').classList.add('hidden');$('done').classList.add('hidden');$('settings').classList.remove('hidden');$('editor').classList.remove('hidden');
+}
+$('start').onclick=()=>{mode=$('modeSelect').value;plan=plan.map(s=>({work:Math.max(1,parseInt(s.work)||1),rest:Math.max(mode==='restOnly'?1:0,parseInt(s.rest)||0)}));start()};
+$('startRest').onclick=beginRestOnly;
+$('pause').onclick=()=>{
+ if(!running)return;
+ if(!paused){remaining=Math.max(0,(deadline-Date.now())/1000);paused=true;running=true;clearInterval(interval);try{if(window.speechSynthesis)window.speechSynthesis.cancel();}catch(e){}$('pause').textContent='▶ Wznów';update()}
+ else{paused=false;deadline=Date.now()+remaining*1000;interval=setInterval(tick,100);$('pause').textContent='Ⅱ Pauza';update()}
+};
+$('skip').onclick=()=>{if(!running)return;if(total>=6)beep('end');nextPhase()};
+$('stop').onclick=stop;
+$('again').onclick=stop;
+makeDefault(6);
+updateModeUI();
+</script>
+</body>
+</html>
